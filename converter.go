@@ -7,9 +7,20 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	tele "gopkg.in/telebot.v3"
 )
+
+var mu sync.Mutex
+
+func execCommand(inputFilePath, outputFilePath string) error {
+	mu.Lock()
+	defer mu.Unlock()
+	cmd := exec.Command("unoconv", "--output", outputFilePath, inputFilePath)
+	_, err := cmd.Output()
+	return err
+}
 
 func convertToPDF(c tele.Context) error {
 	go func(c tele.Context) {
@@ -32,7 +43,8 @@ func convertToPDF(c tele.Context) error {
 			return
 		}
 
-		err := c.Send("Conversion in progress...")
+		msg := fmt.Sprintf("Conversion of [%s] in progress...", fileFullName)
+		err := c.Send(msg)
 		if err != nil {
 			logErrorEvent(err, c)
 			return
@@ -58,9 +70,7 @@ func convertToPDF(c tele.Context) error {
 
 		outputFilePath := fmt.Sprintf("%s/%s.pdf", workingDirectory, uniqueFileName)
 
-		cmd := exec.Command("unoconv", "--output", outputFilePath, inputFilePath)
-		_, err = cmd.Output()
-		defer os.Remove(outputFilePath)
+		err = execCommand(inputFilePath, outputFilePath)
 		if err != nil {
 			logErrorEvent(err, c)
 			msg := fmt.Sprintf("Could't convert [%s] to PDF. Unsupported format or file's size is too big", fileFullName)
@@ -71,12 +81,13 @@ func convertToPDF(c tele.Context) error {
 			}
 			return
 		}
+		defer os.Remove(outputFilePath)
 
 		logInfoEvent("sending PDF file to chat", c)
 
 		err = c.Send(&tele.Document{
 			File:     tele.FromDisk(outputFilePath),
-			Caption:  "File was successfully converted",
+			Caption:  fmt.Sprintf("File [%s] was successfully converted", fileFullName),
 			FileName: fileShortName + ".pdf",
 		})
 		if err != nil {
