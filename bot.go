@@ -21,7 +21,7 @@ func startBot() {
 	}
 
 	bot.Handle("/start", func(c tele.Context) error {
-		logInfoEvent("Activating bot", c)
+		log.Printf("[%s]: status - activating bot", c.Message().Sender.Username)
 		err := c.Send("Hi! I am a pdf converter - upload files and get them in PDF format")
 		if err != nil {
 			log.Println(err)
